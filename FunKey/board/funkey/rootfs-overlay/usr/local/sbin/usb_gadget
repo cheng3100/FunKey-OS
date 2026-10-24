@@ -155,16 +155,6 @@ init_usb_gadget() {
 
 	# Add the RNDIS function to the FunKey.1 configuration
 	ln -s ${GADGET}/functions/rndis.usb0 ${GADGET}/configs/FunKey.1
-
-	# Bind the USB Gadget as RNDIS device
-	echo ${udc_driver} > ${GADGET}/UDC
-	sleep 5
-
-	# Start network services
-	systemctl start networking ntp dropbear > /dev/null 2>&1
-
-	# Unbind the device
-	echo > ${GADGET}/UDC
     fi
 
     # Add the Mass Storage function to the FunKey.1 configuration
@@ -175,11 +165,33 @@ init_usb_gadget() {
 
     # Bind the USB Gadget as a Mass Storage device
     echo ${udc_driver} > ${GADGET}/UDC
+    if [ ${USBNET} -eq 1 ]; then
+	# usb0 is created dynamically, after the boot-time ifup -a.
+	ip addr replace 192.168.137.2/24 dev usb0 || warn "USB address setup failed"
+	ip link set dev usb0 up || warn "USB interface startup failed"
+	# Keep DHCP state in RAM; advertise neither a gateway nor DNS.
+	printf '%s\n' \
+	    'start 192.168.137.1' 'end 192.168.137.1' \
+	    'interface usb0' 'max_leases 1' \
+	    'option subnet 255.255.255.0' 'option lease 3600' \
+	    'lease_file /tmp/udhcpd-usb0.leases' \
+	    'pidfile /var/run/udhcpd-usb0.pid' > /tmp/udhcpd-usb0.conf
+	mkdir -p /var/run
+	start-stop-daemon -S -q -o -p /var/run/udhcpd-usb0.pid \
+	    -x /usr/sbin/udhcpd -- /tmp/udhcpd-usb0.conf || warn "USB DHCP startup failed"
+	pidof dropbear >/dev/null || /etc/init.d/S42dropbear start
+    fi
     return 0
 }
 
 # Deinitialize the USB gadget
 deinit_usb_gadget() {
+
+    # Check the function rather than the marker, which may have been removed.
+    if [ -d ${GADGET}/functions/rndis.usb0 ]; then
+	start-stop-daemon -K -q -o -p /var/run/udhcpd-usb0.pid \
+	    -x /usr/sbin/udhcpd || warn "USB DHCP shutdown failed"
+    fi
 
     # Unbind the device
     echo > ${GADGET}/UDC
