@@ -12,6 +12,20 @@ PICOARCH_LICENSE_FILES = LICENSE
 
 PICOARCH_DEPENDENCIES = sdl sdl_image sdl_ttf
 
+# Default emulator launchers load these cores from /usr/games.
+PICOARCH_CORES = gambatte gpsp fceumm picodrive mednafen_lynx \
+	mednafen_ngp mednafen_wswan beetle-pce-fast pcsx_rearmed \
+	snes9x2005 fbalpha2012 mame2000 fake-08 pokemini
+
+# The bundled patches predate incompatible changes in these upstream trees.
+PICOARCH_CORE_OPTIONS = \
+	gambatte_REVISION=b75225203ffea8b65124bb31acb598e91e7f22d9 \
+	pcsx_rearmed_REVISION=87a0a6318564fc171d0b576da8ea7e629aa229e7 \
+	mame2000_REVISION=2ec60f6e1078cf9ba173e80432cc28fd4eea200f \
+	snes9x2005_REPO=https://github.com/libretro/snes9x2005 \
+	snes9x2005_REVISION=74d871db9b4dba6dbe6c5ecebc88cbf255be5349 \
+	mednafen_lynx_REPO=https://github.com/libretro/beetle-lynx-libretro
+
 PICOARCH_SDL_CFLAGS += $(shell $(STAGING_DIR)/usr/bin/sdl-config --cflags)
 PICOARCH_SDL_LIBS   += $(shell $(STAGING_DIR)/usr/bin/sdl-config --libs)
 
@@ -35,6 +49,10 @@ define PICOARCH_BUILD_CMDS
 	SDL_INCLUDES='$(PICOARCH_SDL_CFLAGS)' \
 	SDL_LIBS='$(PICOARCH_SDL_LIBS)' \
 	)
+	$(TARGET_MAKE_ENV) $(MAKE) -C $(@D) cores platform=funkey-s \
+		CORES="$(PICOARCH_CORES)" CROSS_COMPILE="$(TARGET_CROSS)" \
+		CC="$(TARGET_CC)" CXX="$(TARGET_CXX)" \
+		$(PICOARCH_CORE_OPTIONS)
 endef
 
 PICOARCH_GIT_SUBMODULES = YES
@@ -42,6 +60,15 @@ PICOARCH_GIT_SUBMODULES = YES
 define PICOARCH_INSTALL_TARGET_CMDS
 	$(INSTALL) -d -m 0755 $(TARGET_DIR)/usr/games
 	$(INSTALL) -m 0755 $(@D)/picoarch $(TARGET_DIR)/usr/games/
+	set -e; for core in $(PICOARCH_CORES); do \
+		name=$$core; \
+		case $$core in \
+			beetle-pce-fast) name=mednafen_pce_fast ;; \
+			fake-08) name=fake08 ;; \
+		esac; \
+		$(INSTALL) -m 0755 "$(@D)/$${core}_libretro.so" \
+			"$(TARGET_DIR)/usr/games/$${name}_libretro.so"; \
+	done
 endef
 
 define PICOARCH_CREATE_OPK
