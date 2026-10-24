@@ -1,0 +1,21 @@
+From: FunKey OS maintainers
+Subject: [PATCH] scripts/dtc: remove duplicate yylloc definition
+
+GCC 10 and later default to -fno-common. The parser already defines yylloc
+and dtc-parser.tab.h declares it, so the lexer must not define it again.
+Update the shipped lexer too because this kernel uses pregenerated sources.
+
+Upstream: e33a814e772cdc36436c8c188d8c42d019fda639
+
+diff --git a/scripts/dtc/dtc-lexer.l b/scripts/dtc/dtc-lexer.l
+--- a/scripts/dtc/dtc-lexer.l
++++ b/scripts/dtc/dtc-lexer.l
+@@ -41,2 +41 @@
+-YYLTYPE yylloc;
+ extern bool treesource_error;
+diff --git a/scripts/dtc/dtc-lexer.lex.c_shipped b/scripts/dtc/dtc-lexer.lex.c_shipped
+--- a/scripts/dtc/dtc-lexer.lex.c_shipped
++++ b/scripts/dtc/dtc-lexer.lex.c_shipped
+@@ -634,2 +634 @@
+-YYLTYPE yylloc;
+ extern bool treesource_error;
